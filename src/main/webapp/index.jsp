@@ -1,18 +1,16 @@
+<%@ page import="java.util.Date" %>
+<!DOCTYPE html>
 <html>
-
+<head>
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
 <body>
-
-<h2>Hello achintha!</h2>
-
-<p>This is my NextWork web application working!</p>
-
-<p>If you see this line in Github, that means your latest changes are getting pushed to your cloud repo :o</p>
-
-<p>If you see this line, that means your latest changes are automatically deployed into production by CodePipeline!</p>
-<p> This is my first CI/CD pipeline using AWS CodePipeline, CodeBuild and CodeDeploy.</p>
-
-<p>Version 1.0.3</p>
-
+<div class="dashboard">
+    <h2>Hello, <%= request.getParameter("username") %>!</h2>
+    <p>You are now logged in.</p>
+    <p>Current Server Time: <%= new Date() %></p>
+    <a href="login.jsp" class="btn">Logout</a>
+</div>
 </body>
-
 </html>
