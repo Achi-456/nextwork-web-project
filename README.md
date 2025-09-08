@@ -10,6 +10,9 @@ This project showcases a complete DevOps workflow on AWS, featuring a simple Jav
 
 The project implements a robust CI/CD pipeline using the following AWS services:
 
+![CI/CD Pipeline Architecture](CICD%20pipeline%20architecture%20diagram.png)
+
+### High-Level Flow:
 ```
 ┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐    ┌──────────────┐
 │   Source Code   │ -> │  CodeBuild   │ -> │  CodeArtifact   │ -> │  CodeDeploy  │
@@ -64,6 +67,16 @@ Before setting up this project, ensure you have:
    ```
 
 ## 🚀 Setup and Deployment
+
+### Development Environment
+
+This project was developed and tested using an **AWS EC2 t3.small** instance with remote development via SSH connection in VS Code. All development, building, and testing processes were performed directly on AWS infrastructure, ensuring consistency with the deployment environment.
+
+**Development Setup:**
+- Instance Type: EC2 t3.small
+- Remote Development: VS Code with SSH extension
+- Build Environment: Amazon Linux 2 with Java 8 and Maven
+- Direct AWS integration for all services
 
 ### 1. Infrastructure Setup
 
