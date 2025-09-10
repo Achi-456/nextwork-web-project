@@ -47,6 +47,19 @@ Resources:
         - Key: 'Name'
           Value: !Join ['', [!Ref 'AWS::StackName', '::PublicSubnetA'] ]
 
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      AvailabilityZone: !Select
+        - 1
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      VpcId: !Ref VPC
+      CidrBlock: 10.11.16.0/20
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: 'Name'
+          Value: !Join ['', [!Ref 'AWS::StackName', '::PublicSubnetB'] ]
+
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -69,11 +82,16 @@ Resources:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref PublicSubnetA
 
+  PublicSubnetBRouteTableAssociation: 
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetB
+
   PublicSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      VpcId:
-        Ref: VPC
+      VpcId: !Ref VPC
       GroupDescription: Access to our Web server
       SecurityGroupIngress:
       - Description: Enable HTTP access via port 80 IPv4
@@ -88,6 +106,72 @@ Resources:
       Tags:
         - Key: 'Name'
           Value: !Join ['', [!Ref 'AWS::StackName', '::PublicSecurityGroup'] ]
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: "Security group for RDS MySQL database"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref PublicSecurityGroup
+          Description: "Allow MySQL access from web server"
+      Tags:
+        - Key: 'Name'
+          Value: !Join ['', [!Ref 'AWS::StackName', '::DatabaseSecurityGroup'] ]
+
+  MyDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Subnet group for RDS MySQL"
+      SubnetIds:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
+      DBSubnetGroupName: !Sub "${AWS::StackName}-db-subnet-group"
+      Tags:
+        - Key: 'Name'
+          Value: !Join ['', [!Ref 'AWS::StackName', '::MyDBSubnetGroup'] ]
+
+  DBSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties: 
+      Name: !Sub "${AWS::StackName}-db-credentials"
+      Description: "MySQL database credentials"
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "admin"}'
+        GenerateStringKey: "password"
+        PasswordLength: 32 
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: 'Name'
+          Value: !Join ['', [!Ref 'AWS::StackName', '::DBSecret'] ]
+
+  MySQLDatabase:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub "${AWS::StackName}-mysql-db"
+      DBName: "nextworkdb"
+      AllocatedStorage: 20
+      MaxAllocatedStorage: 100
+      DBInstanceClass: db.t3.micro
+      Engine: mysql
+      EngineVersion: "8.0.39"
+      MasterUsername: !Sub "{{resolve:secretsmanager:${DBSecret}:SecretString:username}}"
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${DBSecret}:SecretString:password}}"
+      VPCSecurityGroups:
+        - !Ref DatabaseSecurityGroup
+      DBSubnetGroupName: !Ref MyDBSubnetGroup
+      MultiAZ: false
+      PubliclyAccessible: false
+      DeletionProtection: false
+      BackupRetentionPeriod: 7
+      StorageType: gp2
+      StorageEncrypted: true
+      Tags:
+        - Key: 'Name'
+          Value: !Join ['', [!Ref 'AWS::StackName', '::MySQLDatabase'] ]
 
   ServerRole: 
     Type: AWS::IAM::Role
@@ -106,6 +190,21 @@ Resources:
       ManagedPolicyArns:
         - "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
         - "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+
+  EC2SecretsPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "SecretsManagerAccess"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+              - secretsmanager:DescribeSecret
+            Resource: !Ref DBSecret
+      Roles:
+        - !Ref ServerRole
 
   DeployRoleProfile: 
     Type: AWS::IAM::InstanceProfile
@@ -145,3 +244,20 @@ Outputs:
           - PublicIp
     Description: NextWork web server
 
+  DBEndpoint:
+    Description: "MySQL RDS Endpoint"
+    Value: !GetAtt MySQLDatabase.Endpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-db-endpoint"
+  
+  DBPort:
+    Description: "MySQL RDS Port"
+    Value: !GetAtt MySQLDatabase.Endpoint.Port
+    Export:
+      Name: !Sub "${AWS::StackName}-db-port"
+  
+  DBSecretArn:
+    Description: "Database credentials secret ARN"
+    Value: !Ref DBSecret
+    Export:
+      Name: !Sub "${AWS::StackName}-db-secret"
